@@ -189,13 +189,9 @@
             min-width: 110px;
         }
 
+        /* hide the separate name line; we only show @username */
         .name {
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .tile[data-slot="center"] .name {
-            font-size: 18px;
+            display: none;
         }
 
         .username {
@@ -315,6 +311,14 @@
             return Array.from(map.values()).filter(p => !isLocalParticipant(p));
         };
 
+        const REQUIRED_SOURCES = ['camera', 'microphone', 'screen_share', 'screen_share_audio'];
+
+        function hasFullPublishPermission(p) {
+            const sources = p?.permissions?.canPublishSources;
+            if (!Array.isArray(sources)) return false;
+            return REQUIRED_SOURCES.every(src => sources.includes(src));
+        }
+
         function parseMetadata(md) {
             try {
                 return md ? JSON.parse(md) : {};
@@ -333,16 +337,17 @@
 
         function participantInfo(p) {
             const md = parseMetadata(p.metadata);
-            const fallbackName = md.name || p.name || p.identity || "User";
-            const displayName = md.displayName || fallbackName;
+            const displayFromMd = md.displayName || "";
+            const fallbackName = displayFromMd || md.name || p.name || p.identity || "User";
             const username =
+                displayFromMd ||
                 md.username ||
                 md.handle ||
                 md.userName ||
-                md.displayName ||
                 "";
+
             return {
-                displayName,
+                displayName: fallbackName,
                 username,
                 avatarUrl: md.avatarUrl || md.avatar || md.photoUrl || null,
                 userId: md.userId || null,
@@ -419,7 +424,11 @@
             tile.dataset.userId = info.userId || '';
             tile.dataset.chatId = info.chatId || '';
 
-            if (nameEl) nameEl.textContent = info.displayName;
+            // hide big name text completely
+            if (nameEl) {
+                nameEl.textContent = '';
+                nameEl.style.display = 'none';
+            }
 
             if (usernameEl) {
                 if (info.username) {
@@ -572,44 +581,42 @@
                 if (md.isIngress === true) return true;
                 if (typeof md.role === 'string' && md.role.toLowerCase() === 'ingress') return true;
             }
-            const identity = (p.identity || '').toLowerCase();
-            const name = (p.name || '').toLowerCase();
-            return identity.includes('ingress') || name.includes('ingress');
+            const rawName = (p.name || p.identity || '').toLowerCase();
+            // ingress participants have "xxxxx-stream" in their name
+            return rawName.includes('-stream');
         }
 
         function determineCenterParticipantSid(participants) {
             if (!participants.length) return null;
 
-            const host = participants.find(isHostParticipant);
-            if (host) return host.sid;
-
-            const speakerHost = activeSpeakerSids.find(sid => {
-                const participant = participants.find(p => p.sid === sid);
-                return participant && isHostParticipant(participant);
-            });
-            if (speakerHost) return speakerHost;
-
+            // 1) Ingress (xxxxx-stream) always wins
             const ingress = participants.find(isIngressParticipant);
             if (ingress) return ingress.sid;
 
+            // 2) Host
+            const host = participants.find(isHostParticipant);
+            if (host) return host.sid;
+
+            // 3) Any current active speaker
             const active = activeSpeakerSids.find(sid => participants.some(p => p.sid === sid));
             if (active) return active;
 
+            // 4) Fallback
             return participants[0].sid;
         }
 
-        function buildSideOrder(centerSid, participants) {
-            const order = [];
-            activeSpeakerSids.forEach(sid => {
-                if (sid !== centerSid && participants.some(p => p.sid === sid) && !order.includes(sid)) {
-                    order.push(sid);
-                }
-            });
-            participants.forEach(p => {
-                if (p.sid === centerSid) return;
-                if (!order.includes(p.sid)) order.push(p.sid);
-            });
-            return order;
+        function getSideParticipantSids(centerSid, participants) {
+            // only non-center participants with full publish permission
+            const eligible = participants.filter(
+                p => p.sid !== centerSid && hasFullPublishPermission(p)
+            );
+            if (!eligible.length) return [];
+
+            const speaking = eligible.filter(p => activeSpeakerSids.includes(p.sid));
+            const nonSpeaking = eligible.filter(p => !activeSpeakerSids.includes(p.sid));
+
+            // speakers first, then others, max 3
+            return [...speaking, ...nonSpeaking].slice(0, 3).map(p => p.sid);
         }
 
         function renderLayout() {
@@ -618,12 +625,27 @@
 
             const centerSid = determineCenterParticipantSid(participants);
 
+            // ----- CENTER / RIGHT SIDE -----
             stage.innerHTML = '';
+            let centerParticipant = null;
+
             if (centerSid) {
                 stage.dataset.empty = 'false';
+                centerParticipant = participants.find(p => p.sid === centerSid) || null;
                 const centerTile = tiles.get(centerSid);
                 if (centerTile) {
                     centerTile.dataset.slot = 'center';
+
+                    // If this is an ingress tile, hide nameplate completely (no @username)
+                    const nameplate = centerTile.querySelector('.nameplate');
+                    if (nameplate) {
+                        if (centerParticipant && isIngressParticipant(centerParticipant)) {
+                            nameplate.style.display = 'none';
+                        } else {
+                            nameplate.style.display = '';
+                        }
+                    }
+
                     stage.appendChild(centerTile);
                 }
             } else {
@@ -634,18 +656,27 @@
                 stage.appendChild(placeholder);
             }
 
+            // ----- LEFT SIDE: up to 3 non-center participants with required publish permissions -----
             sideGrid.innerHTML = '';
-            const orderedSide = buildSideOrder(centerSid, participants).slice(0, 3);
-            orderedSide.forEach(sid => {
+            const sideSids = centerSid
+                ? getSideParticipantSids(centerSid, participants)
+                : [];
+
+            sideSids.forEach(sid => {
                 const tile = tiles.get(sid);
                 if (!tile) return;
                 tile.dataset.slot = 'side';
+
+                const nameplate = tile.querySelector('.nameplate');
+                if (nameplate) nameplate.style.display = '';
+
                 sideGrid.appendChild(tile);
             });
 
+            // ----- OFFSCREEN: everyone else -----
             tiles.forEach((tile, sid) => {
                 if (sid === centerSid) return;
-                if (orderedSide.includes(sid)) return;
+                if (sideSids.includes(sid)) return;
                 tile.dataset.slot = 'offscreen';
                 offscreen.appendChild(tile);
             });
