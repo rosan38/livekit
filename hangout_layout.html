@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Groov Speaker Layout</title>
+    <meta content="width=device-width,initial-scale=1" name="viewport" />
+    <style>
+        :root {
+            --bg: #05070f;
+            --panel: #0f1423;
+            --card: #151b2d;
+            --text: #f4f8ff;
+            --muted: #9aa4b2;
+            --accent: #636bff;
+            --speaking: #7aa2ff;
+            --radius: 22px;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle at 20% 20%, rgba(80, 94, 166, 0.35), transparent 42%), var(--bg);
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: var(--text);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(230px, 320px) 1fr;
+            gap: 22px;
+            padding: 24px;
+            box-sizing: border-box;
+            height: 100%;
+        }
+
+        .sidebar,
+        .stage {
+            background: var(--panel);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .side-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-auto-rows: minmax(160px, 1fr);
+            gap: 16px;
+            align-content: start;
+        }
+
+        .stage {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+        }
+
+        .stage[data-empty="true"] {
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+        }
+
+        .stage-placeholder {
+            font-size: 16px;
+            color: var(--muted);
+            letter-spacing: 0.3px;
+        }
+
+        .tile {
+            position: relative;
+            background: var(--card);
+            border-radius: calc(var(--radius) - 4px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.45);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .tile.speaking {
+            border-color: rgba(122, 162, 255, 0.8);
+            box-shadow: 0 0 30px rgba(122, 162, 255, 0.45);
+        }
+
+        .media-surface {
+            position: relative;
+            width: 100%;
+            min-height: 220px;
+            background: linear-gradient(180deg, #1b2135 0%, #0c0f19 100%);
+        }
+
+        .tile[data-slot="center"] .media-surface {
+            min-height: clamp(360px, 60vh, 720px);
+        }
+
+        .tile[data-slot="side"] .media-surface {
+            min-height: 160px;
+        }
+
+        .media-video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: calc(var(--radius) - 6px);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            background: #05070f;
+        }
+
+        .tile[data-media="video"] .media-video {
+            opacity: 1;
+        }
+
+        .avatar-only {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .tile[data-media="video"] .avatar-only {
+            opacity: 0;
+            transform: scale(0.92);
+        }
+
+        .big-avatar {
+            width: clamp(120px, 24vw, 220px);
+            height: clamp(120px, 24vw, 220px);
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1e2741, #101426);
+            border: 3px solid rgba(255, 255, 255, 0.12);
+            display: grid;
+            place-items: center;
+            font-size: clamp(32px, 5vw, 64px);
+            font-weight: 600;
+            color: var(--text);
+            overflow: hidden;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.45);
+        }
+
+        .tile[data-slot="side"] .big-avatar {
+            width: 90px;
+            height: 90px;
+            font-size: 28px;
+        }
+
+        .big-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .nameplate {
+            position: absolute;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%);
+            background: rgba(3, 6, 14, 0.65);
+            border-radius: 999px;
+            padding: 8px 18px;
+            text-align: center;
+            min-width: 140px;
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            pointer-events: none;
+        }
+
+        .tile[data-slot="side"] .nameplate {
+            padding: 6px 14px;
+            min-width: 110px;
+        }
+
+        .name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .tile[data-slot="center"] .name {
+            font-size: 18px;
+        }
+
+        .username {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .tile[data-slot="side"] .username {
+            font-size: 12px;
+        }
+
+        .muted {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .audio-slot {
+            width: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        #offscreen {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #offscreen .tile {
+            display: none;
+        }
+
+        @media (max-width: 1100px) {
+            .layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+            }
+
+            .sidebar {
+                order: 2;
+                min-height: 200px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .layout {
+                padding: 16px;
+            }
+
+            .sidebar,
+            .stage {
+                padding: 12px;
+            }
+
+            .tile[data-slot="center"] .media-surface {
+                min-height: 320px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="layout">
+        <div class="sidebar">
+            <div class="side-grid" id="side-grid"></div>
+        </div>
+        <div class="stage" data-empty="true" id="stage">
+            <div class="stage-placeholder">Waiting for host...</div>
+        </div>
+    </div>
+    <div aria-hidden="true" id="offscreen"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.15.14/dist/livekit-client.umd.min.js"></script>
+    <script type="module">
+        const { Room, RoomEvent } = window.LivekitClient;
+
+        const qs = new URLSearchParams(location.search);
+        const wsUrl = qs.get('url') || "{{.Url}}";
+        const token = qs.get('token') || "{{.Token}}";
+
+        const room = new Room({
+            adaptiveStream: true,
+            dynacast: true,
+            stopLocalTrackOnUnpublish: true,
+            publishDefaults: { simulcast: true }
+        });
+
+        const stage = document.getElementById('stage');
+        const sideGrid = document.getElementById('side-grid');
+        const offscreen = document.getElementById('offscreen');
+        const tiles = new Map();
+        let activeSpeakerSids = [];
+
+        const getParticipantMap = () => {
+            // Be defensive: some SDK versions use remoteParticipants, some participants
+            const rp = room.remoteParticipants;
+            const p = room.participants;
+            if (rp && typeof rp.values === 'function') return rp;
+            if (p && typeof p.values === 'function') return p;
+            return new Map();
+        };
+
+        const isLocalParticipant = (participant) => {
+            if (!participant) return true;
+            if (participant.isLocal) return true;
+            const local = room.localParticipant;
+            return !!local && participant.sid === local.sid;
+        };
+
+        const getParticipants = () => {
+            const map = getParticipantMap();
+            return Array.from(map.values()).filter(p => !isLocalParticipant(p));
+        };
+
+        function parseMetadata(md) {
+            try {
+                return md ? JSON.parse(md) : {};
+            } catch {
+                return {};
+            }
+        }
+
+        function initials(name) {
+            if (!name) return "?";
+            const parts = name.trim().split(/\s+/);
+            const first = parts[0]?.[0] ?? "";
+            const second = parts[1]?.[0] ?? "";
+            return (first + second || first).toUpperCase();
+        }
+
+        function participantInfo(p) {
+            const md = parseMetadata(p.metadata);
+            const fallbackName = md.name || p.name || p.identity || "User";
+            const displayName = md.displayName || fallbackName;
+            const username =
+                md.username ||
+                md.handle ||
+                md.userName ||
+                md.displayName ||
+                "";
+            return {
+                displayName,
+                username,
+                avatarUrl: md.avatarUrl || md.avatar || md.photoUrl || null,
+                userId: md.userId || null,
+                chatId: md.chatId || null
+            };
+        }
+
+        function ensureTile(p) {
+            if (!p || isLocalParticipant(p)) return null;
+            let tile = tiles.get(p.sid);
+            const info = participantInfo(p);
+
+            if (!tile) {
+                tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.dataset.sid = p.sid;
+                tile.dataset.media = 'audio';
+                tile.dataset.slot = 'offscreen';
+
+                const surface = document.createElement('div');
+                surface.className = 'media-surface';
+
+                const videoEl = document.createElement('video');
+                videoEl.className = 'media-video';
+                videoEl.autoplay = true;
+                videoEl.playsInline = true;
+                videoEl.muted = true;
+                surface.appendChild(videoEl);
+
+                const avatarOnly = document.createElement('div');
+                avatarOnly.className = 'avatar-only';
+                const bigAvatar = document.createElement('div');
+                bigAvatar.className = 'big-avatar';
+                avatarOnly.appendChild(bigAvatar);
+                surface.appendChild(avatarOnly);
+
+                const nameplate = document.createElement('div');
+                nameplate.className = 'nameplate';
+                const name = document.createElement('div');
+                name.className = 'name';
+                nameplate.appendChild(name);
+                const username = document.createElement('div');
+                username.className = 'username';
+                nameplate.appendChild(username);
+                const muted = document.createElement('div');
+                muted.className = 'muted';
+                muted.textContent = 'Mic muted';
+                muted.style.display = 'none';
+                nameplate.appendChild(muted);
+                surface.appendChild(nameplate);
+
+                tile.appendChild(surface);
+
+                const audioSlot = document.createElement('div');
+                audioSlot.className = 'audio-slot';
+                tile.appendChild(audioSlot);
+
+                tiles.set(p.sid, tile);
+                offscreen.appendChild(tile);
+            }
+
+            updateIdentity(tile, info);
+            attachAudio(p);
+            attachVideo(p);
+            updateMuteBadge(p);
+            return tile;
+        }
+
+        function updateIdentity(tile, info) {
+            if (!tile) return;
+            const nameEl = tile.querySelector('.name');
+            const usernameEl = tile.querySelector('.username');
+            const bigAvatar = tile.querySelector('.big-avatar');
+            tile.dataset.userId = info.userId || '';
+            tile.dataset.chatId = info.chatId || '';
+
+            if (nameEl) nameEl.textContent = info.displayName;
+
+            if (usernameEl) {
+                if (info.username) {
+                    const normalized = info.username.startsWith('@') ? info.username : `@${info.username}`;
+                    usernameEl.textContent = normalized;
+                    usernameEl.style.display = 'block';
+                } else {
+                    usernameEl.textContent = '';
+                    usernameEl.style.display = 'none';
+                }
+            }
+
+            if (bigAvatar) {
+                const existingImg = bigAvatar.querySelector('img');
+                if (existingImg) existingImg.remove();
+                bigAvatar.textContent = '';
+                if (info.avatarUrl) {
+                    const img = document.createElement('img');
+                    img.src = info.avatarUrl;
+                    img.alt = info.displayName;
+                    bigAvatar.appendChild(img);
+                } else {
+                    bigAvatar.textContent = initials(info.displayName);
+                }
+            }
+        }
+
+        function attachAudio(p) {
+            if (!p || !p.audioTracks || typeof p.audioTracks.forEach !== 'function') return;
+            const tile = tiles.get(p.sid);
+            if (!tile) return;
+            const slot = tile.querySelector('.audio-slot');
+            if (!slot) return;
+
+            const activeTracks = new Set();
+            p.audioTracks.forEach(pub => {
+                if (pub.isSubscribed && pub.audioTrack) {
+                    const track = pub.audioTrack;
+                    activeTracks.add(track.sid);
+                    let audioEl = slot.querySelector(`audio[data-track-sid="${track.sid}"]`);
+                    if (!audioEl) {
+                        audioEl = document.createElement('audio');
+                        audioEl.autoplay = true;
+                        audioEl.playsInline = true;
+                        audioEl.dataset.trackSid = track.sid;
+                        slot.appendChild(audioEl);
+                    }
+                    track.attach(audioEl);
+                }
+            });
+
+            slot.querySelectorAll('audio').forEach(el => {
+                if (!activeTracks.has(el.dataset.trackSid)) {
+                    el.srcObject = null;
+                    el.remove();
+                }
+            });
+        }
+
+        function pickVideoPublication(p) {
+            if (!p || !p.videoTracks || typeof p.videoTracks.values !== 'function') return null;
+            const pubs = Array.from(p.videoTracks.values()).filter(pub => pub.isSubscribed && pub.videoTrack && !pub.isMuted);
+            if (!pubs.length) return null;
+            const camera = pubs.find(pub => pub.source === 'camera');
+            if (camera) return camera;
+            return pubs[0];
+        }
+
+        function detachVideoTrack(p, el, sid) {
+            if (!p || !p.videoTracks || typeof p.videoTracks.values !== 'function') return;
+            const pub = Array.from(p.videoTracks.values()).find(entry => entry.videoTrack && entry.videoTrack.sid === sid);
+            if (pub && pub.videoTrack) {
+                pub.videoTrack.detach(el);
+            }
+        }
+
+        function attachVideo(p) {
+            if (!p) return;
+            const tile = tiles.get(p.sid);
+            if (!tile) return;
+            const videoEl = tile.querySelector('.media-video');
+            if (!videoEl) return;
+
+            const pub = pickVideoPublication(p);
+            const currentSid = videoEl.dataset.trackSid;
+
+            if (pub && pub.videoTrack) {
+                const track = pub.videoTrack;
+                if (currentSid && currentSid !== track.sid) {
+                    detachVideoTrack(p, videoEl, currentSid);
+                }
+                videoEl.dataset.trackSid = track.sid;
+                track.attach(videoEl);
+                tile.dataset.media = 'video';
+            } else {
+                if (currentSid) {
+                    detachVideoTrack(p, videoEl, currentSid);
+                }
+                videoEl.removeAttribute('data-track-sid');
+                videoEl.srcObject = null;
+                tile.dataset.media = 'audio';
+            }
+        }
+
+        function updateMuteBadge(p) {
+            if (!p || !p.audioTracks || typeof p.audioTracks.values !== 'function') return;
+            const tile = tiles.get(p.sid);
+            if (!tile) return;
+            const badge = tile.querySelector('.muted');
+            if (!badge) return;
+            const first = Array.from(p.audioTracks.values())[0];
+            const muted = !first || first.isMuted || !first.isSubscribed;
+            badge.style.display = muted ? 'block' : 'none';
+        }
+
+        function removeTile(p) {
+            const tile = tiles.get(p.sid);
+            if (!tile) return;
+            const audios = tile.querySelectorAll('audio');
+            audios.forEach(a => {
+                a.srcObject = null;
+                a.remove();
+            });
+            const videoEl = tile.querySelector('.media-video');
+            if (videoEl && videoEl.dataset.trackSid) {
+                detachVideoTrack(p, videoEl, videoEl.dataset.trackSid);
+                videoEl.removeAttribute('data-track-sid');
+                videoEl.srcObject = null;
+            }
+            tile.remove();
+            tiles.delete(p.sid);
+            activeSpeakerSids = activeSpeakerSids.filter(sid => sid !== p.sid);
+            renderLayout();
+        }
+
+        function isHostParticipant(p) {
+            const md = parseMetadata(p.metadata);
+            if (md) {
+                if (md.isHost === true) return true;
+                if (typeof md.role === 'string' && md.role.toLowerCase() === 'host') return true;
+                if (typeof md.permissions === 'string' && md.permissions.toLowerCase() === 'allow') return true;
+            }
+            const identity = (p.identity || '').toLowerCase();
+            return identity.includes('host');
+        }
+
+        function isIngressParticipant(p) {
+            const md = parseMetadata(p.metadata);
+            if (md) {
+                if (md.isIngress === true) return true;
+                if (typeof md.role === 'string' && md.role.toLowerCase() === 'ingress') return true;
+            }
+            const identity = (p.identity || '').toLowerCase();
+            const name = (p.name || '').toLowerCase();
+            return identity.includes('ingress') || name.includes('ingress');
+        }
+
+        function determineCenterParticipantSid(participants) {
+            if (!participants.length) return null;
+
+            const host = participants.find(isHostParticipant);
+            if (host) return host.sid;
+
+            const speakerHost = activeSpeakerSids.find(sid => {
+                const participant = participants.find(p => p.sid === sid);
+                return participant && isHostParticipant(participant);
+            });
+            if (speakerHost) return speakerHost;
+
+            const ingress = participants.find(isIngressParticipant);
+            if (ingress) return ingress.sid;
+
+            const active = activeSpeakerSids.find(sid => participants.some(p => p.sid === sid));
+            if (active) return active;
+
+            return participants[0].sid;
+        }
+
+        function buildSideOrder(centerSid, participants) {
+            const order = [];
+            activeSpeakerSids.forEach(sid => {
+                if (sid !== centerSid && participants.some(p => p.sid === sid) && !order.includes(sid)) {
+                    order.push(sid);
+                }
+            });
+            participants.forEach(p => {
+                if (p.sid === centerSid) return;
+                if (!order.includes(p.sid)) order.push(p.sid);
+            });
+            return order;
+        }
+
+        function renderLayout() {
+            const participants = getParticipants();
+            activeSpeakerSids = activeSpeakerSids.filter(sid => participants.some(p => p.sid === sid));
+
+            const centerSid = determineCenterParticipantSid(participants);
+
+            stage.innerHTML = '';
+            if (centerSid) {
+                stage.dataset.empty = 'false';
+                const centerTile = tiles.get(centerSid);
+                if (centerTile) {
+                    centerTile.dataset.slot = 'center';
+                    stage.appendChild(centerTile);
+                }
+            } else {
+                stage.dataset.empty = 'true';
+                const placeholder = document.createElement('div');
+                placeholder.className = 'stage-placeholder';
+                placeholder.textContent = 'Waiting for host...';
+                stage.appendChild(placeholder);
+            }
+
+            sideGrid.innerHTML = '';
+            const orderedSide = buildSideOrder(centerSid, participants).slice(0, 3);
+            orderedSide.forEach(sid => {
+                const tile = tiles.get(sid);
+                if (!tile) return;
+                tile.dataset.slot = 'side';
+                sideGrid.appendChild(tile);
+            });
+
+            tiles.forEach((tile, sid) => {
+                if (sid === centerSid) return;
+                if (orderedSide.includes(sid)) return;
+                tile.dataset.slot = 'offscreen';
+                offscreen.appendChild(tile);
+            });
+        }
+
+        // Events
+        room.on(RoomEvent.ParticipantConnected, p => {
+            ensureTile(p);
+            renderLayout();
+        });
+
+        room.on(RoomEvent.ParticipantDisconnected, p => {
+            removeTile(p);
+        });
+
+        room.on(RoomEvent.TrackSubscribed, (track, pub, p) => {
+            if (isLocalParticipant(p)) return;
+            ensureTile(p);
+            if (track.kind === 'audio') {
+                attachAudio(p);
+                updateMuteBadge(p);
+            }
+            if (track.kind === 'video') {
+                attachVideo(p);
+            }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track, pub, p) => {
+            if (isLocalParticipant(p)) return;
+            if (track.kind === 'audio') {
+                attachAudio(p);
+                updateMuteBadge(p);
+            }
+            if (track.kind === 'video') {
+                attachVideo(p);
+            }
+        });
+
+        room.on(RoomEvent.TrackMuted, (_pub, p) => {
+            if (isLocalParticipant(p)) return;
+            attachVideo(p);
+            updateMuteBadge(p);
+        });
+
+        room.on(RoomEvent.TrackUnmuted, (_pub, p) => {
+            if (isLocalParticipant(p)) return;
+            attachVideo(p);
+            updateMuteBadge(p);
+        });
+
+        room.on(RoomEvent.ParticipantMetadataChanged, p => {
+            ensureTile(p);
+            renderLayout();
+        });
+
+        const handleActive = (speakers) => {
+            tiles.forEach(tile => tile.classList.remove('speaking'));
+            const remoteSpeakers = speakers.filter(sp => sp && !isLocalParticipant(sp));
+            activeSpeakerSids = remoteSpeakers.map(sp => sp.sid);
+            remoteSpeakers.forEach(sp => {
+                ensureTile(sp);
+                const tile = tiles.get(sp.sid);
+                if (tile) tile.classList.add('speaking');
+            });
+            renderLayout();
+        };
+        room.on(RoomEvent.ActiveSpeakersChanged, handleActive);
+        room.on('activeSpeakerChange', handleActive);
+
+        room.on(RoomEvent.ConnectionStateChanged, state => {
+            if (state === 'connected') {
+                const participants = getParticipants();
+                participants.forEach(p => ensureTile(p));
+                renderLayout();
+            }
+        });
+
+        (async () => {
+            await room.connect(wsUrl, token, { autoSubscribe: true });
+
+            const participants = getParticipants();
+            participants.forEach(p => ensureTile(p));
+            renderLayout();
+
+            setTimeout(() => {
+                document.querySelectorAll('audio').forEach(a =>
+                    a.play().catch(() => { })
+                );
+            }, 200);
+        })();
+    </script>
+</body>
+
+</html>
